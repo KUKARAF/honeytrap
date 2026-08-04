@@ -1,0 +1,30 @@
+{
+  "environment": "production",
+  "database": {
+    "host": "{{ private_ip() }}",
+    "port": 5432,
+    "username": "app_admin",
+    "password": "{{ password(24) }}",
+    "name": "app_production"
+  },
+  "redis": {
+    "host": "{{ private_ip() }}",
+    "port": 6379,
+    "password": "{{ password(20) }}"
+  },
+  "jwt": {
+    "secret": "{{ hex(48) }}",
+    "sample_token": "{{ jwt() }}"
+  },
+  "aws": {
+    "access_key_id": "{{ aws_access_key() }}",
+    "secret_access_key": "{{ base64(40) }}",
+    "region": "us-east-1"
+  },
+  "smtp": {
+    "host": "smtp.{{ hostname() }}",
+    "user": "{{ email() }}",
+    "password": "{{ password(16) }}"
+  },
+  "instance_id": "{{ uuid() }}"
+}

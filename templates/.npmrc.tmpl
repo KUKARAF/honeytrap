@@ -1,0 +1,5 @@
+registry=https://registry.{{ hostname() }}/
+//registry.{{ hostname() }}/:_authToken={{ hex(40) }}
+//registry.npmjs.org/:_authToken={{ hex(40) }}
+always-auth=true
+email={{ email() }}

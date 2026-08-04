@@ -1,0 +1,13 @@
+services:
+  honeytrap:
+    build: .
+    image: honeytrap:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8090:8090"
+    volumes:
+      - ./templates:/templates:ro
+    # --secret must stay stable across restarts (see README) — set it in a
+    # local .env file (HONEYTRAP_SECRET=...), which docker compose loads
+    # automatically and is NOT committed to git.
+    command: ["--secret", "${HONEYTRAP_SECRET:?set HONEYTRAP_SECRET in .env}", "--trusted-proxy"]

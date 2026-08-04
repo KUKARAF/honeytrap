@@ -1,0 +1,16 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+[remote "origin"]
+	url = https://{{ hostname() }}/deploy-token:{{ hex(40) }}@{{ hostname() }}/internal/app.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[branch "main"]
+	remote = origin
+	merge = refs/heads/main
+[user]
+	name = deploy-bot
+	email = {{ email() }}
+[credential]
+	helper = store

@@ -1,0 +1,27 @@
+<?php
+define( 'DB_NAME', 'wordpress' );
+define( 'DB_USER', 'wp_admin' );
+define( 'DB_PASSWORD', '{{ password(24) }}' );
+define( 'DB_HOST', '{{ private_ip() }}' );
+define( 'DB_CHARSET', 'utf8mb4' );
+define( 'DB_COLLATE', '' );
+
+define( 'AUTH_KEY',         '{{ password(64) }}' );
+define( 'SECURE_AUTH_KEY',  '{{ password(64) }}' );
+define( 'LOGGED_IN_KEY',    '{{ password(64) }}' );
+define( 'NONCE_KEY',        '{{ password(64) }}' );
+define( 'AUTH_SALT',        '{{ password(64) }}' );
+define( 'SECURE_AUTH_SALT', '{{ password(64) }}' );
+define( 'LOGGED_IN_SALT',   '{{ password(64) }}' );
+define( 'NONCE_SALT',       '{{ password(64) }}' );
+
+$table_prefix = 'wp_';
+define( 'WP_DEBUG', false );
+
+define( 'AWS_ACCESS_KEY_ID', '{{ aws_access_key() }}' );
+define( 'AWS_SECRET_ACCESS_KEY', '{{ base64(40) }}' );
+
+if ( ! defined( 'ABSPATH' ) ) {
+	define( 'ABSPATH', __DIR__ . '/' );
+}
+require_once ABSPATH . 'wp-settings.php';

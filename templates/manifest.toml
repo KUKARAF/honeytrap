@@ -1,0 +1,8 @@
+# Optional aliases: map additional request paths to an existing template
+# file without creating a duplicate file. Not required for the 8 default
+# paths shipped in this directory — those are resolved purely by filename
+# convention (see README).
+#
+# [aliases]
+# "/.env.bak" = ".env.tmpl"
+# "/backup/.env" = ".env.tmpl"
