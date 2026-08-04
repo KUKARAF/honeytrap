@@ -26,14 +26,23 @@ else is handled normally by your real services.
   shift between requests is instantly recognizable as fake.
 - **Bounded.** Every template is rendered and size-checked against
   `--max-bytes` (default 8192) **at startup** — an oversized template is a
-  loud startup failure, not a runtime surprise. The point of a tarpit is to
-  cost the scanner more than it costs you.
+  loud startup failure. At request time the response is also hard-capped
+  (truncated on a UTF-8 boundary, and logged) so the cap holds even if a
+  template's size drifts with the seed. The point of a tarpit is to cost the
+  scanner more than it costs you.
+- **No 404 tells.** A path with no exact template is served a
+  *deterministically-picked* fallback template instead of a 404 (a real
+  leaked host would serve `/.env.bak` too, so 404-ing on it is a giveaway).
+  The pick is a stable function of `(client IP, Host, path, salt)` — the same
+  probe always gets the same template and the same fake secrets, and two
+  different probe paths never render byte-identical output. Disable with
+  `--no-fallback` (see below).
 
 ## Usage
 
 ```
-honeytrap serve --listen 127.0.0.1:8090 --templates ./templates --secret <random-string> [--max-bytes 8192] [--trusted-proxy]
-honeytrap gen --path /.env --ip 1.2.3.4 --host example.com --templates ./templates --secret <random-string>
+honeytrap serve --listen 127.0.0.1:8090 --templates ./templates --secret <random-string> [--max-bytes 8192] [--trusted-proxy] [--no-fallback]
+honeytrap gen --path /.env --ip 1.2.3.4 --host example.com --templates ./templates --secret <random-string> [--no-fallback]
 ```
 
 `serve` runs the HTTP server. `gen` renders a single response to stdout so
@@ -47,6 +56,12 @@ determinism guarantee above breaks.
 the client IP instead of the raw socket peer. Only enable this when you
 actually sit behind a proxy that sets the header — otherwise a scanner could
 spoof it to manipulate which "identity" it's seeded as.
+
+`--no-fallback` restores plain `404` responses for unmatched paths. The
+fallback is safe to leave on **because Caddy only forwards probe-shaped paths
+to honeytrap** (see the snippet below), so honeytrap never sees — and never
+200s — an ordinary URL. If you run honeytrap reachable directly (not gated by
+such a proxy), use `--no-fallback` so it doesn't answer every path.
 
 ## Quickstart: Docker Compose + Caddy
 
@@ -63,30 +78,47 @@ spoof it to manipulate which "identity" it's seeded as.
    docker compose up -d
    ```
 
-3. Point Caddy's probe paths at it. Example `Caddyfile` snippet:
+3. Point Caddy's probe paths at it. Unlike a static file such as
+   `/.well-known/security.txt` (same bytes for everyone, so a plain
+   `respond "..."` snippet works), every honeytrap response has to be
+   generated per-request — it varies by client IP and Host — so it can't be
+   inlined as a literal string in the Caddyfile. It's a `reverse_proxy` hop
+   instead. Define it once as a reusable snippet and `import` it into every
+   vhost you want protected:
 
    ```caddyfile
-   your-real-site.example.com {
-       # Route known scanner probe paths to the honeypot before anything else.
-       @honeytrap {
+   (honeytrap) {
+       @honeytrap_paths {
            path /.env* /.aws/credentials /.git/config /config.json
            path /wp-config.php /docker-compose.yml /.npmrc /secrets.json
        }
-       handle @honeytrap {
+       handle @honeytrap_paths {
            reverse_proxy 127.0.0.1:8090 {
                header_up X-Forwarded-For {remote_host}
                header_up Host {host}
            }
        }
+   }
+
+   your-real-site.example.com {
+       import honeytrap
 
        # ... the rest of your real site's config ...
        reverse_proxy 127.0.0.1:3000
+   }
+
+   another-site.example.com {
+       import honeytrap
+       reverse_proxy 127.0.0.1:4000
    }
    ```
 
    Caddy sets `X-Forwarded-For` by default on `reverse_proxy`, but it's
    spelled out above for clarity — `honeytrap` only honors it because
-   `docker-compose.yaml` passes `--trusted-proxy`.
+   `docker-compose.yaml` passes `--trusted-proxy`. Because the seed includes
+   the `Host` header, `another-site.example.com` gets a completely different
+   set of fake credentials than `your-real-site.example.com` even though
+   both import the exact same snippet.
 
 4. Ship the JSON logs (`docker compose logs -f honeytrap`) to your
    Loki/Grafana stack — see [Log schema](#log-schema) below.
@@ -132,11 +164,17 @@ cleanly, or want multiple paths served by one template? Add an alias in
 One JSON line per request to stdout (`tracing`, ships to Loki/Grafana):
 
 ```json
-{"timestamp":"...","level":"INFO","fields":{"event":"served","client_ip":"1.2.3.4","host":"example.com","path":"/.env","template":".env.tmpl","bytes":989,"response_hash":"..."}}
+{"timestamp":"...","level":"INFO","fields":{"event":"served","client_ip":"1.2.3.4","host":"example.com","path":"/.env","template":".env.tmpl","fallback":false,"bytes":989,"response_hash":"..."}}
 ```
 
-`event` is `"served"` for a rendered response or `"miss"` for an unrecognized
-path (404).
+`event` values:
+
+- `served` — a response was rendered. `fallback` is `true` when the path had
+  no exact template and one was picked deterministically (see above).
+- `miss` — unmatched path returned `404` (only happens with `--no-fallback`).
+- `cap_exceeded` (`WARN`) — a rendered template exceeded `--max-bytes` and was
+  truncated; indicates a template to shrink.
+- `render_error` (`ERROR`) — a template failed to render at request time.
 
 ## Development
 

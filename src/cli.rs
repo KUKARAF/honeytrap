@@ -29,6 +29,12 @@ pub enum Commands {
         /// Trust X-Forwarded-For for client IP (set when behind Caddy).
         #[arg(long, default_value_t = false)]
         trusted_proxy: bool,
+        /// Return 404 for unmatched paths instead of serving a
+        /// deterministically-picked fallback template. Use when honeytrap is
+        /// reachable directly (not gated by a proxy that only forwards
+        /// probe-shaped paths).
+        #[arg(long, default_value_t = false)]
+        no_fallback: bool,
     },
     /// Render a single response to stdout, reproducing what `serve` would
     /// have sent for the same (path, ip, host, secret).
@@ -45,5 +51,9 @@ pub enum Commands {
         secret: String,
         #[arg(long, default_value_t = 8192)]
         max_bytes: usize,
+        /// Return an error for an unmatched path instead of reproducing the
+        /// fallback template `serve` would send. Mirrors `serve --no-fallback`.
+        #[arg(long, default_value_t = false)]
+        no_fallback: bool,
     },
 }

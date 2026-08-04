@@ -7,14 +7,21 @@ use std::cell::RefCell;
 const SEED_DOMAIN_TAG: &[u8] = b"honeytrap-seed-v1";
 
 /// Derive a deterministic 32-byte RNG seed from the client IP, requested Host
-/// header, and an operator-supplied salt. Same inputs always produce the same
-/// seed; changing any one input produces an unrelated seed.
-pub fn derive_seed(client_ip: &str, host: &str, salt: &str) -> [u8; 32] {
+/// header, request path, and an operator-supplied salt. Same inputs always
+/// produce the same seed; changing any one input produces an unrelated seed.
+///
+/// The path is part of the seed so that two different requested paths never
+/// render byte-identical output — this matters for the fallback mechanism,
+/// where several unmatched paths may resolve to the same template but must
+/// still look like distinct artifacts.
+pub fn derive_seed(client_ip: &str, host: &str, path: &str, salt: &str) -> [u8; 32] {
     let mut hasher = blake3::Hasher::new();
     hasher.update(SEED_DOMAIN_TAG);
     hasher.update(client_ip.as_bytes());
     hasher.update(b"\0");
     hasher.update(host.to_lowercase().as_bytes());
+    hasher.update(b"\0");
+    hasher.update(path.as_bytes());
     hasher.update(b"\0");
     hasher.update(salt.as_bytes());
     *hasher.finalize().as_bytes()
@@ -51,40 +58,48 @@ mod tests {
     #[test]
     fn same_inputs_same_seed() {
         assert_eq!(
-            derive_seed("1.2.3.4", "example.com", "s"),
-            derive_seed("1.2.3.4", "example.com", "s")
+            derive_seed("1.2.3.4", "example.com", "/.env", "s"),
+            derive_seed("1.2.3.4", "example.com", "/.env", "s")
         );
     }
 
     #[test]
     fn different_host_different_seed() {
         assert_ne!(
-            derive_seed("1.2.3.4", "a.example.com", "s"),
-            derive_seed("1.2.3.4", "b.example.com", "s")
+            derive_seed("1.2.3.4", "a.example.com", "/.env", "s"),
+            derive_seed("1.2.3.4", "b.example.com", "/.env", "s")
         );
     }
 
     #[test]
     fn different_ip_different_seed() {
         assert_ne!(
-            derive_seed("1.1.1.1", "example.com", "s"),
-            derive_seed("2.2.2.2", "example.com", "s")
+            derive_seed("1.1.1.1", "example.com", "/.env", "s"),
+            derive_seed("2.2.2.2", "example.com", "/.env", "s")
+        );
+    }
+
+    #[test]
+    fn different_path_different_seed() {
+        assert_ne!(
+            derive_seed("1.2.3.4", "example.com", "/.env", "s"),
+            derive_seed("1.2.3.4", "example.com", "/.env.bak", "s")
         );
     }
 
     #[test]
     fn different_salt_different_seed() {
         assert_ne!(
-            derive_seed("1.2.3.4", "example.com", "s1"),
-            derive_seed("1.2.3.4", "example.com", "s2")
+            derive_seed("1.2.3.4", "example.com", "/.env", "s1"),
+            derive_seed("1.2.3.4", "example.com", "/.env", "s2")
         );
     }
 
     #[test]
     fn host_case_insensitive() {
         assert_eq!(
-            derive_seed("1.2.3.4", "Example.COM", "s"),
-            derive_seed("1.2.3.4", "example.com", "s")
+            derive_seed("1.2.3.4", "Example.COM", "/.env", "s"),
+            derive_seed("1.2.3.4", "example.com", "/.env", "s")
         );
     }
 }

@@ -12,6 +12,10 @@ pub struct TemplateStore {
     pub env: Environment<'static>,
     /// request path -> minijinja template name (== on-disk filename)
     path_map: HashMap<String, String>,
+    /// Sorted, deduplicated list of template names used to deterministically
+    /// pick a fallback for an unmatched request path. Sorted so the index a
+    /// seed maps to is stable across process restarts.
+    fallback_pool: Vec<String>,
 }
 
 impl TemplateStore {
@@ -60,14 +64,55 @@ impl TemplateStore {
             path_map.insert(alias_path, target_filename);
         }
 
-        Ok(TemplateStore { env, path_map })
+        let mut fallback_pool: Vec<String> = known_templates;
+        fallback_pool.sort();
+        fallback_pool.dedup();
+
+        Ok(TemplateStore {
+            env,
+            path_map,
+            fallback_pool,
+        })
     }
 
     pub fn resolve_path(&self, request_path: &str) -> Option<&str> {
         self.path_map.get(request_path).map(String::as_str)
     }
 
+    /// Deterministically pick a template for an unmatched path from the sorted
+    /// pool, indexed by the request's seed. Same seed always yields the same
+    /// template, including across restarts. Returns `None` only when no
+    /// templates are loaded at all.
+    pub fn pick_fallback(&self, seed: &[u8; 32]) -> Option<&str> {
+        if self.fallback_pool.is_empty() {
+            return None;
+        }
+        let n = self.fallback_pool.len() as u64;
+        let idx = (u64::from_le_bytes(seed[0..8].try_into().unwrap()) % n) as usize;
+        Some(&self.fallback_pool[idx])
+    }
+
     pub fn template_names(&self) -> impl Iterator<Item = &str> {
         self.path_map.values().map(String::as_str)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fallback_pick_is_stable_across_loads() {
+        // Loading the store twice must produce the same sorted pool, so the
+        // same seed always maps to the same template — even across restarts,
+        // where HashMap iteration order would otherwise differ.
+        let dir = Path::new("templates");
+        let a = TemplateStore::load(dir).expect("load");
+        let b = TemplateStore::load(dir).expect("load");
+        assert_eq!(a.fallback_pool, b.fallback_pool);
+        assert!(!a.fallback_pool.is_empty());
+
+        let seed = [7u8; 32];
+        assert_eq!(a.pick_fallback(&seed), b.pick_fallback(&seed));
     }
 }

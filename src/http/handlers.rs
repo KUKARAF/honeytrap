@@ -12,6 +12,9 @@ pub struct AppState {
     pub salt: String,
     pub max_bytes: usize,
     pub trusted_proxy: bool,
+    /// When true, an unmatched path is served a deterministically-picked
+    /// fallback template instead of a 404.
+    pub fallback: bool,
 }
 
 pub async fn handle(
@@ -28,13 +31,19 @@ pub async fn handle(
         .to_lowercase();
     let path = uri.path();
 
-    let Some(result) = render::render_for_path(&state.store, path, &client_ip, &host, &state.salt)
-    else {
+    let Some(result) = render::render_for_path(
+        &state.store,
+        path,
+        &client_ip,
+        &host,
+        &state.salt,
+        state.fallback,
+    ) else {
         tracing::info!(event = "miss", client_ip = %client_ip, host = %host, path = %path, status = 404);
         return StatusCode::NOT_FOUND.into_response();
     };
 
-    let rendered = match result {
+    let mut rendered = match result {
         Ok(r) => r,
         Err(e) => {
             tracing::error!(event = "render_error", client_ip = %client_ip, host = %host, path = %path, error = %e);
@@ -42,10 +51,27 @@ pub async fn handle(
         }
     };
 
-    debug_assert!(
-        rendered.bytes.len() <= state.max_bytes,
-        "startup validation should have guaranteed this"
-    );
+    // Startup validation is the primary guarantee that templates fit the cap,
+    // but enforce it at request time too: variable-length generators mean a
+    // template's size can drift slightly with the seed, and startup only
+    // samples a few seeds. Truncate on a char boundary so we never emit more
+    // than the cap, and log it so an offending template is visible.
+    if rendered.bytes.len() > state.max_bytes {
+        tracing::warn!(
+            event = "cap_exceeded",
+            template = %rendered.template,
+            bytes = rendered.bytes.len(),
+            max_bytes = state.max_bytes,
+        );
+        // Back up off any UTF-8 continuation byte (0b10xxxxxx) so we never
+        // split a multi-byte character. `cut < len` holds here because we only
+        // enter this block when len > max_bytes.
+        let mut cut = state.max_bytes;
+        while cut > 0 && (rendered.bytes[cut] & 0xC0) == 0x80 {
+            cut -= 1;
+        }
+        rendered.bytes.truncate(cut);
+    }
 
     let hash = blake3::hash(&rendered.bytes).to_hex().to_string();
     tracing::info!(
@@ -54,6 +80,7 @@ pub async fn handle(
         host = %host,
         path = %path,
         template = %rendered.template,
+        fallback = rendered.fallback,
         bytes = rendered.bytes.len(),
         response_hash = %hash,
     );

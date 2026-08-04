@@ -27,6 +27,7 @@ fn main() -> ExitCode {
             secret,
             max_bytes,
             trusted_proxy,
+            no_fallback,
         } => {
             let store = match TemplateStore::load(&templates) {
                 Ok(s) => s,
@@ -46,6 +47,7 @@ fn main() -> ExitCode {
                 salt: secret,
                 max_bytes,
                 trusted_proxy,
+                fallback: !no_fallback,
             });
 
             let rt = match tokio::runtime::Runtime::new() {
@@ -68,6 +70,7 @@ fn main() -> ExitCode {
             templates,
             secret,
             max_bytes,
+            no_fallback,
         } => {
             let store = match TemplateStore::load(&templates) {
                 Ok(s) => s,
@@ -81,7 +84,14 @@ fn main() -> ExitCode {
                 return ExitCode::FAILURE;
             }
 
-            match render::render_for_path(&store, &path, &ip, &host.to_lowercase(), &secret) {
+            match render::render_for_path(
+                &store,
+                &path,
+                &ip,
+                &host.to_lowercase(),
+                &secret,
+                !no_fallback,
+            ) {
                 Some(Ok(rendered)) => {
                     use std::io::Write;
                     std::io::stdout().write_all(&rendered.bytes).unwrap();
