@@ -11,7 +11,7 @@ fn init_tracing() {
         .json()
         .with_env_filter(
             tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("info".parse().unwrap()),
+                .add_directive(tracing_subscriber::filter::LevelFilter::INFO.into()),
         )
         .init();
 }
@@ -94,8 +94,13 @@ fn main() -> ExitCode {
             ) {
                 Some(Ok(rendered)) => {
                     use std::io::Write;
-                    std::io::stdout().write_all(&rendered.bytes).unwrap();
-                    ExitCode::SUCCESS
+                    match std::io::stdout().write_all(&rendered.bytes) {
+                        Ok(()) => ExitCode::SUCCESS,
+                        Err(e) => {
+                            eprintln!("failed to write output: {e}");
+                            ExitCode::FAILURE
+                        }
+                    }
                 }
                 Some(Err(e)) => {
                     eprintln!("render error: {e}");

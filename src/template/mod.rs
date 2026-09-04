@@ -88,8 +88,11 @@ impl TemplateStore {
             return None;
         }
         let n = self.fallback_pool.len() as u64;
-        let idx = (u64::from_le_bytes(seed[0..8].try_into().unwrap()) % n) as usize;
-        Some(&self.fallback_pool[idx])
+        let idx = seed
+            .get(0..8)
+            .and_then(|s| <[u8; 8]>::try_from(s).ok())
+            .map_or(0, |b| (u64::from_le_bytes(b) % n) as usize);
+        self.fallback_pool.get(idx).map(String::as_str)
     }
 
     pub fn template_names(&self) -> impl Iterator<Item = &str> {

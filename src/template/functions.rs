@@ -32,7 +32,7 @@ fn current_rng() -> Rc<RngHandle> {
     CURRENT_RNG.with(|c| {
         c.borrow()
             .clone()
-            .expect("template global function called outside with_rng scope")
+            .unwrap_or_else(|| Rc::new(RngHandle::new([0u8; 32])))
     })
 }
 
