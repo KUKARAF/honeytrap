@@ -8,18 +8,20 @@ const SUFFIX_LEN: usize = 16;
 /// embedded at a fixed offset in the suffix. Never a real, ever-issued key —
 /// see README for why embedding `HTRAP` here is safe.
 pub fn access_key(rng: &RngHandle) -> String {
+    let marker = MARKER_TAG.as_bytes();
     let marker_start = 5;
-    let marker_end = marker_start + MARKER_TAG.len();
-    let mut suffix = vec![0u8; SUFFIX_LEN];
-    for (i, slot) in suffix.iter_mut().enumerate() {
-        if i >= marker_start && i < marker_end {
-            *slot = MARKER_TAG.as_bytes()[i - marker_start];
+    let marker_end = marker_start + marker.len();
+    let mut suffix = String::with_capacity(SUFFIX_LEN);
+    for i in 0..SUFFIX_LEN {
+        let byte = if i >= marker_start && i < marker_end {
+            marker.get(i - marker_start).copied().unwrap_or(b'A')
         } else {
             let idx = rng.gen_range_u32(SUFFIX_ALPHABET.len() as u32) as usize;
-            *slot = SUFFIX_ALPHABET[idx];
-        }
+            SUFFIX_ALPHABET.get(idx).copied().unwrap_or(b'A')
+        };
+        suffix.push(byte as char);
     }
-    format!("AKIA{}", String::from_utf8(suffix).unwrap())
+    format!("AKIA{suffix}")
 }
 
 #[cfg(test)]

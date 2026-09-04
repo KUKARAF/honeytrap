@@ -9,7 +9,7 @@ pub fn password(rng: &RngHandle, len: usize) -> String {
     (0..len)
         .map(|_| {
             let idx = rng.gen_range_u32(PASSWORD_ALPHABET.len() as u32) as usize;
-            PASSWORD_ALPHABET[idx] as char
+            PASSWORD_ALPHABET.get(idx).copied().unwrap_or(b'x') as char
         })
         .collect()
 }

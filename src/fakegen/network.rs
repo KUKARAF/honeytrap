@@ -9,7 +9,10 @@ const INFRA_WORDS: &[&str] = &[
 /// looks like a real internal address but is IANA-reserved and never
 /// assigned to real infrastructure.
 pub fn private_ip(rng: &RngHandle) -> String {
-    let range = RFC5737_RANGES[rng.gen_range_u32(RFC5737_RANGES.len() as u32) as usize];
+    let range = RFC5737_RANGES
+        .get(rng.gen_range_u32(RFC5737_RANGES.len() as u32) as usize)
+        .copied()
+        .unwrap_or([192, 0, 2]);
     let last_octet = rng.gen_range_u32(255) + 1;
     format!("{}.{}.{}.{}", range[0], range[1], range[2], last_octet)
 }
@@ -17,9 +20,15 @@ pub fn private_ip(rng: &RngHandle) -> String {
 /// A plausible-looking internal hostname under a reserved domain
 /// (`example.com` or `.invalid`, RFC 2606) — guaranteed to never resolve.
 pub fn hostname(rng: &RngHandle) -> String {
-    let word = INFRA_WORDS[rng.gen_range_u32(INFRA_WORDS.len() as u32) as usize];
+    let word = INFRA_WORDS
+        .get(rng.gen_range_u32(INFRA_WORDS.len() as u32) as usize)
+        .copied()
+        .unwrap_or("app");
     let suffix = super::secrets::hex(rng, 6);
-    let domain = RESERVED_DOMAINS[rng.gen_range_u32(RESERVED_DOMAINS.len() as u32) as usize];
+    let domain = RESERVED_DOMAINS
+        .get(rng.gen_range_u32(RESERVED_DOMAINS.len() as u32) as usize)
+        .copied()
+        .unwrap_or("invalid");
     if domain == "invalid" {
         format!("{word}-{suffix}.invalid")
     } else {

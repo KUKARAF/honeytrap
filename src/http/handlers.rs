@@ -67,7 +67,7 @@ pub async fn handle(
         // split a multi-byte character. `cut < len` holds here because we only
         // enter this block when len > max_bytes.
         let mut cut = state.max_bytes;
-        while cut > 0 && (rendered.bytes[cut] & 0xC0) == 0x80 {
+        while cut > 0 && rendered.bytes.get(cut).is_some_and(|b| (b & 0xC0) == 0x80) {
             cut -= 1;
         }
         rendered.bytes.truncate(cut);

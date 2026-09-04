@@ -5,9 +5,15 @@ const LOCAL_PARTS: &[&str] = &["admin", "root", "noreply", "support", "db"];
 
 /// A plausible service-account-style email under a reserved domain.
 pub fn email(rng: &RngHandle) -> String {
-    let local = LOCAL_PARTS[rng.gen_range_u32(LOCAL_PARTS.len() as u32) as usize];
+    let local = LOCAL_PARTS
+        .get(rng.gen_range_u32(LOCAL_PARTS.len() as u32) as usize)
+        .copied()
+        .unwrap_or("admin");
     let suffix = super::secrets::hex(rng, 4);
-    let domain = RESERVED_DOMAINS[rng.gen_range_u32(RESERVED_DOMAINS.len() as u32) as usize];
+    let domain = RESERVED_DOMAINS
+        .get(rng.gen_range_u32(RESERVED_DOMAINS.len() as u32) as usize)
+        .copied()
+        .unwrap_or("invalid");
     let domain = if domain == "invalid" {
         "mail.invalid".to_string()
     } else {
@@ -21,7 +27,7 @@ pub fn email(rng: &RngHandle) -> String {
 /// randomness) — the `uuid` crate is used only for correct 8-4-4-4-12
 /// formatting and version/variant bit placement.
 pub fn uuid(rng: &RngHandle) -> String {
-    let mut bytes: [u8; 16] = rng.next_bytes(16).try_into().unwrap();
+    let mut bytes: [u8; 16] = rng.next_bytes(16).try_into().unwrap_or([0u8; 16]);
     bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
     bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 10
     uuid::Builder::from_bytes(bytes).into_uuid().to_string()
