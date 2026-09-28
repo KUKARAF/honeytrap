@@ -11,5 +11,7 @@ RUN cargo build --release --target x86_64-unknown-linux-musl
 FROM scratch AS final
 COPY --from=builder /build/target/x86_64-unknown-linux-musl/release/honeytrap /honeytrap
 COPY templates /templates
+# scratch has no /etc/passwd; 65534 is the conventional 'nobody'. Port 8090 needs no root.
+USER 65534:65534
 EXPOSE 8090
 ENTRYPOINT ["/honeytrap", "serve", "--listen", "0.0.0.0:8090", "--templates", "/templates"]

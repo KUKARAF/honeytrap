@@ -1,0 +1,19 @@
+# Copy to .github/workflows/security.yml
+name: Security
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "17 6 * * 1" # weekly: new advisories land even when the code doesn't change
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  security:
+    uses: KUKARAF/.github/.github/workflows/security.yml@v1
+    # with:
+    #   rust-dir: rust          # if the Cargo workspace isn't at the repo root
+    #   skip: docker            # space-separated: lockfile deps advisories workflows secrets sast docker

@@ -1,0 +1,17 @@
+# Copy to .github/dependabot.yml
+# Keeps SHA-pinned actions and crates current, so pinning never means "stale".
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 } # don't adopt a release until it's survived a week in the wild
+    groups:
+      actions: { patterns: ["*"] }
+  - package-ecosystem: cargo
+    directory: /
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 } # don't adopt a release until it's survived a week in the wild
+    open-pull-requests-limit: 5
+    groups:
+      patch: { update-types: ["patch"] }
